@@ -105,6 +105,22 @@ namespace draw
 		}
 	};
 	//-----------------------------------------------------------------------
+	// Texture生成支援クラス
+	/// toPointColor : (Int,Int) -> RGBA
+	//-----------------------------------------------------------------------
+	template <typename ToPoint>
+	Texture makeTexture1(types::Size2 size, ToPoint const& toPoint)
+//	template <1, typename ToPoint>
+///	Texture buildTexture(types::Size2 size, ToPoint const& toPoint)
+	{
+		draw::Texture texture(size);
+		for (int iY = 0; iY < size.y; ++iY)
+			for (int iX = 0; iX < size.x; ++iX)
+				texture.setRgba(iY, iX, toPoint(iY,iX));
+		return texture;
+	};
+
+	//-----------------------------------------------------------------------
 	// 描写用の環境を用意する
 	// 暫定的に、ぎこちない「型紙メソッド」様式で作成する。
 	//-----------------------------------------------------------------------

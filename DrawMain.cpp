@@ -41,36 +41,52 @@ namespace
 		}
 	}
 	//--------------------------------------------------------------------------
+	// 画像の生成、点単位で移すための関数
+	//--------------------------------------------------------------------------
+	class ToPoint
+	{
+		types::IYX posLeftUp_;
+		std::vector<ca::Point > const& points_;
+		ca::LandCa2 const& landCa2_;
+
+		ToPoint& operator=(ToPoint const&) = delete;
+	public:
+		ToPoint(types::IYX posLeftUp,
+			std::vector<ca::Point > const& points,ca::LandCa2 const& landCa2): 
+				posLeftUp_(posLeftUp),points_(points),landCa2_(landCa2)
+		{
+		}
+
+
+		draw::RGBA operator()(int iYt, int iXt)const
+		{
+			int const iY = iYt + posLeftUp_.iY;
+			int const iX = iXt + posLeftUp_.iX;
+
+			if (!landCa2_.isValid({ iY, iX }))
+				return draw::RGBA(0, 128, 255, 255);
+
+			auto const h = std::max<short>(0, points_[landCa2_({ iY, iX })].height);
+			auto const r = static_cast<unsigned __int8>(std::min(255, h / 4 + 1));
+			auto const g = static_cast<unsigned __int8>(
+				h < 6 * 255 ? std::max(0, std::min(255, 255 - h / 2))
+				: std::min(255, (h - 6 * 255) / 6));
+			auto const b = static_cast<unsigned __int8>(std::min(255, h / 8 + 1));
+			return draw::RGBA(r, g, b, 255);
+		}
+	};
+	//--------------------------------------------------------------------------
 	// 画像の生成
 	//--------------------------------------------------------------------------
 	draw::Texture makeTexture(
 		types::IYX posLeftUp,// cursorではなく、leftUpPosあたりにしたい
-		types::Size2 size2,
+		types::Size2 size,
 		std::vector<ca::Point > const& points,
 		ca::LandCa2 const& landCa2)
 	{
-		draw::Texture texture(size2,draw::RGB(0,0,255));
-		for (int iYt = 0; iYt < size2.y; ++iYt)
-		{
-			for (int iXt = 0; iXt < size2.x; ++iXt)
-			{
-				int const iY = iYt + posLeftUp.iY;
-				int const iX = iXt + posLeftUp.iX;
 
-				if (!landCa2.isValid({ iY, iX }))
-					continue;
-
-				auto const h = std::max<short>(0, points[landCa2({ iY, iX })].height);
-				auto const r = static_cast<unsigned __int8>(std::min(255, h / 4 + 1));
-				auto const g = static_cast<unsigned __int8>(
-					h < 6 * 255 ? std::max(0, std::min(255, 255 - h / 2))
-					: std::min(255, (h - 6 * 255)/6));
-				auto const b = static_cast<unsigned __int8>(std::min(255, h / 8 + 1));
-				texture.setRgb(iYt, iXt, draw::RGB(r,g,b));
-			}
-
-		}
-		return texture;
+		ToPoint const toPoint(posLeftUp, points, landCa2);
+		return draw::makeTexture1(size, toPoint);
 	}
 	//-----------------------------------------------------------------------
 	// [textureWidth*textureWidth]の画像データを定義
@@ -168,7 +184,13 @@ void DrawMain::keyCall(int key, int scancode, int action, int mods)
 		glfwSetWindowTitle(win(), str.str().c_str());
 
 		// ※ そのうち、映像の差分取り替えを作りたい
-		backTex_->texture_ = makeTexture(leftUpPos_, backTex_->texture_.size(), points_, landCa2_);
+		//draw::Texture makeTexture(
+		//	types::IYX posLeftUp,// cursorではなく、leftUpPosあたりにしたい
+		//	types::Size2 size,
+		//	std::vector<ca::Point > const& points,
+		//	ca::LandCa2 const& landCa2)
+		ToPoint const toPoint(leftUpPos_, points_, landCa2_);
+		backTex_->texture_ = draw::makeTexture1(backTex_->texture_.size(), toPoint);
 		redrawTexture(*backTex_);
 		return;
 	}
@@ -210,7 +232,9 @@ void DrawMain::drawCall()
 		size.y -= 2 * MARGIN;
 
 
-		backTex_->texture_ = makeTexture(leftUpPos_, size, points_, landCa2_);
+		ToPoint const toPoint(leftUpPos_, points_, landCa2_);
+		backTex_->texture_ = draw::makeTexture1(size, toPoint);
+//		backTex_->texture_ = makeTexture(leftUpPos_, size, points_, landCa2_);
 		drawTexture(*backTex_);
 	}	
 	GLint const minY = MARGIN;
@@ -263,6 +287,9 @@ void DrawMain::winSizeCall(int width, int height)
 	if (backTex_)
 	{
 		glDeleteTextures(1, &backTex_->id_);
+
+		// ここでは、削除して大きさ変更に対応しているが、
+		// 別の方法を探りたい。
 		backTex_ = boost::none;
 
 
